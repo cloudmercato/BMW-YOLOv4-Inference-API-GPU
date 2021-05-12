@@ -1,0 +1,63 @@
+From  nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+
+LABEL maintainer="antoine.charbel@inmind.ai"
+
+COPY docker/requirements.txt .
+
+COPY src/main /main
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install \
+  locales \
+  python3-pip python3-dev \
+  software-properties-common \
+  ca-certificates \
+  build-essential \
+  cmake \
+  git \
+  wget \
+  libopencv-dev 
+  
+#Checkout Version should be 4.4.0 when the new version is released 
+
+RUN git clone http://github.com/opencv/opencv.git && cd opencv \
+	  && git checkout c3bb57afeaf030f10939204d48d7c2a3842f4293 					\
+    && mkdir build && cd build              \
+    && cmake -D CMAKE_BUILD_TYPE=RELEASE    \
+        -D CMAKE_INSTALL_PREFIX=/usr/local  \
+        -D WITH_CUDA=OFF                     \
+        -D WITH_OPENCL=OFF                  \
+        -D ENABLE_FAST_MATH=1               \
+        -D CUDA_FAST_MATH=1                 \
+        -D WITH_CUBLAS=1                    \
+        -D BUILD_DOCS=OFF                   \
+        -D BUILD_PERF_TESTS=OFF             \
+        -D BUILD_TESTS=OFF                  \
+        ..                                  \
+    && make -j `nproc`                      \
+    && make install                         \
+    && cd ${HOME} && rm -rf ./opencv/
+
+
+RUN pip3 install setuptools wheel
+RUN pip3 install --upgrade pip
+RUN pip3 install -r requirements.txt
+
+RUN mkdir -p /models/yolo4-coco
+RUN mkdir /models_hash/
+RUN echo '{}' > /models_hash/model_hash.json
+RUN wget https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4x-mish.weights -O /models/yolo4-coco/yolo-obj.weights
+COPY docker/load_models.py /main/load_models.py
+COPY docker/yolo4-coco/config.json /models/yolo4-coco/config.json
+COPY docker/yolo4-coco/obj.names /models/yolo4-coco/obj.names
+COPY docker/yolo4-coco/obj.data /models/yolo4-coco/obj.data
+COPY docker/yolo4-coco/yolo-obj.cfg /models/yolo4-coco/yolo-obj.cfg
+
+# Set the locale (required for uvicorn)
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+  dpkg-reconfigure --frontend=noninteractive locales && \
+  update-locale LANG=en_US.UTF-8
+ENV LANG en_US.UTF-8
+
+WORKDIR /main
+
+CMD ["uvicorn", "start:app", "--host", "0.0.0.0", "--port", "1234"]

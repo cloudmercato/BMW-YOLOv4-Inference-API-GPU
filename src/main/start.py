@@ -1,4 +1,5 @@
 import sys
+import os
 from typing import List
 from models import ApiResponse
 from inference.errors import Error
@@ -33,6 +34,10 @@ app = FastAPI(version='1.0', title='BMW InnovationLab YOLOv4-v3 darknet inferenc
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 # )
+
+
+if os.environ.get('AUTO_LOAD'):
+    dl_service.load_all_models()
 
 
 @app.get('/load')

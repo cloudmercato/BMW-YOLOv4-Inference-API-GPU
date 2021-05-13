@@ -1,0 +1,3 @@
+FROM cloudmercato/yolo-inference:latest
+
+COPY docker/yolo4-coco/yolo-obj-32.cfg /models/yolo4-coco/yolo-obj.cfg
